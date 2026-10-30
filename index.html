@@ -37,11 +37,6 @@ button{font:inherit;color:inherit}
 .brand h1{font-family:var(--f-display);font-weight:700;font-size:26px;letter-spacing:.01em;margin:0;text-wrap:balance}
 .brand span{color:var(--muted);font-size:13px;letter-spacing:.06em;text-transform:uppercase}
 .controls{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
-.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
-.seg button{border:0;background:none;padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:7px;font-size:14px;color:var(--muted)}
-.seg button+button{border-left:1px solid var(--line)}
-.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
-.seg i{display:inline-block;border:1.5px solid currentColor;border-radius:2px}
 .dots{display:flex;gap:6px;align-items:center}
 .dot{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);background:var(--surface);font-family:var(--f-display);font-weight:600;font-size:14px;cursor:pointer;display:grid;place-items:center;color:var(--muted);padding:0}
 .dot[disabled]{cursor:default;opacity:.55}
@@ -53,12 +48,10 @@ button{font:inherit;color:inherit}
 .frame{container-type:size;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:grid;position:relative;
   box-shadow:0 1px 2px rgba(0,0,0,.06),0 12px 40px -18px rgba(0,0,0,.35);font-size:var(--fs)}
 .frame.landscape{--fs:1.2cqw;--tok:3.1cqw;grid-template-columns:1fr 33cqw}
-.frame.square{--fs:2.35cqw;--tok:5.6cqw;grid-template-rows:auto 1fr}
 .frame.portrait{--fs:3.7cqw;--tok:8.6cqw;grid-template-rows:auto auto 1fr}
 
 .scene[data-err]::before{content:attr(data-err);position:absolute;z-index:5;color:#fff;font-size:.95em;padding:1em;text-align:center}
 .scene{position:relative;background:var(--scene);display:grid;place-items:center;min-height:0;min-width:0}
-.frame.portrait .scene,.frame.square .scene{order:0}
 .viewport{position:relative;width:100%;overflow:hidden;max-width:100%}
 .inner{position:absolute;top:0;height:100%}
 .inner img{display:block;width:100%;height:100%;object-fit:fill;user-select:none;-webkit-user-drag:none;pointer-events:none}
@@ -82,7 +75,6 @@ button{font:inherit;color:inherit}
 .locked .tok{cursor:default}
 
 .panel{display:flex;flex-direction:column;gap:.9em;padding:1.3em 1.4em;min-height:0;min-width:0;overflow:hidden}
-.frame.square .panel{padding:1em 1.2em;gap:.7em}
 .frame.portrait .panel{padding:.9em 1.1em 1.1em;gap:.7em}
 .qhead{display:flex;flex-direction:column;gap:.25em}
 .frame.portrait .qhead{padding:.9em 1.1em .7em}
@@ -130,15 +122,12 @@ h3.sub{font-family:var(--f-display);font-weight:600;font-size:1em;letter-spacing
   .bar{gap:8px}
   .brand h1{font-size:22px}
   .brand span{font-size:11px}
-  .controls{width:100%;gap:8px;justify-content:space-between}
-  .seg button{padding:6px 9px;font-size:13px}
+  .brand span{display:none}
   .dots{gap:4px}
   .dot{width:25px;height:25px}
   .stage{display:block;margin-left:calc(-1 * max(16px, env(safe-area-inset-left, 0px)));margin-right:calc(-1 * max(16px, env(safe-area-inset-right, 0px)))}
   .frame{border-radius:0;border-left:0;border-right:0;box-shadow:none}
   .frame.portrait{--fs:3.9cqw;--tok:9cqw}
-  .frame.square{--fs:3.1cqw;--tok:7cqw}
-  .frame.square .panel{overflow:auto}
   .foot{padding-bottom:56px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -148,11 +137,6 @@ h3.sub{font-family:var(--f-display);font-weight:600;font-size:1em;letter-spacing
   <header class="bar">
     <div class="brand"><h1>Kolejność przejazdu</h1><span>kat. B · 7 sytuacji</span></div>
     <div class="controls">
-      <div class="seg" role="group" aria-label="Format wyświetlania">
-        <button id="f-landscape" data-f="landscape"><i style="width:16px;height:9px"></i>Poziomy</button>
-        <button id="f-portrait" data-f="portrait"><i style="width:9px;height:16px"></i>Pionowy</button>
-        <button id="f-square" data-f="square"><i style="width:12px;height:12px"></i>Kwadrat</button>
-      </div>
       <nav class="dots" id="dots" aria-label="Pytania"></nav>
     </div>
   </header>
@@ -209,17 +193,15 @@ const Q=[
   law:["d1","a7","a25_1"]}
 ];
 
-const FORMATS={landscape:16/9,portrait:9/16,square:1};
+const FORMATS={landscape:16/9,portrait:9/16};
+const MOBILE=matchMedia("(max-width:700px), (pointer:coarse) and (orientation:portrait)");
 const S={fmt:null,i:0,place:{},sel:null,res:Array(Q.length).fill(null),view:"q"};
 const frame=document.getElementById("frame"),stage=document.getElementById("stage"),dotsEl=document.getElementById("dots");
 const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
-function store(k,v){try{localStorage.setItem(k,v)}catch(e){}}
-function load(k){try{return localStorage.getItem(k)}catch(e){return null}}
-
-function setFmt(f){S.fmt=f;store("kp-fmt",f);
-  document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.f===f));
-  frame.className="frame "+f;size();render();}
+// layout follows the device: phone / portrait screen -> vertical, desktop -> horizontal
+function autoFmt(){const f=MOBILE.matches?"portrait":"landscape";
+  if(f!==S.fmt){S.fmt=f;frame.className="frame "+f;size();render()}else size();}
 function size(){
   const r=FORMATS[S.fmt],aw=stage.clientWidth,mobile=innerWidth<=700;
   const ah=Math.max(innerHeight-stage.getBoundingClientRect().top-56,420);
@@ -229,7 +211,7 @@ function size(){
   frame.style.width=Math.floor(w)+"px";
   frame.style.height=S.fmt==="portrait"?"":Math.floor(h)+"px";
 }
-addEventListener("resize",size);
+addEventListener("resize",autoFmt);
 
 function crop(q){ // fraction of image width visible, and left offset
   if(S.fmt!=="portrait")return{cw:1,left:0,ar:16/9};
@@ -285,7 +267,6 @@ function render(){
   }
   frame.classList.toggle("locked",locked);
   frame.innerHTML = S.fmt==="portrait" ? head+scene+`<div class="panel">${body}</div>`
-                  : S.fmt==="square" ? scene+`<div class="panel">${head}${body}</div>`
                   : scene+`<div class="panel">${head}${body}</div>`;
   if(S.sel){const el=frame.querySelector(`.tok[data-n="${S.sel}"]`);el&&el.classList.add("sel")}
 }
@@ -333,7 +314,6 @@ frame.addEventListener("click",e=>{if(e.target.closest("#tray")&&!e.target.close
 frame.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("tok")){e.preventDefault();e.target.click()}
   if(e.key==="Escape"&&S.sel){S.sel=null;render()}});
 dotsEl.addEventListener("click",e=>{const b=e.target.closest(".dot");if(b&&!b.disabled)go(+b.dataset.k)});
-document.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>setFmt(b.dataset.f)));
 
 // drag
 let drag=null,suppressClick=false;
@@ -363,8 +343,7 @@ function end(e){
 addEventListener("pointerup",end);addEventListener("pointercancel",e=>{if(drag&&drag.g)drag.g.remove();drag=null;render()});
 
 // init
-const saved=load("kp-fmt");
-setFmt(FORMATS[saved]?saved:(innerWidth<innerHeight?"portrait":"landscape"));
+autoFmt();
 requestAnimationFrame(size);
 </script>
 
