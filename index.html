@@ -47,8 +47,8 @@ button{font:inherit;color:inherit}
 .stage{flex:1;min-height:0;display:grid;align-items:start;justify-items:center}
 .frame{container-type:size;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:grid;position:relative;
   box-shadow:0 1px 2px rgba(0,0,0,.06),0 12px 40px -18px rgba(0,0,0,.35);font-size:var(--fs)}
-.frame.landscape{--fs:1.2cqw;--tok:3.1cqw;grid-template-columns:1fr 33cqw}
-.frame.portrait{--fs:3.7cqw;--tok:8.6cqw;grid-template-rows:auto auto 1fr}
+.frame.landscape{--fs:1.2cqw;--tok:3.1cqw;--ttok:4.6cqw;grid-template-columns:1fr 33cqw}
+.frame.portrait{--fs:3.7cqw;--tok:8.6cqw;--ttok:14cqw;grid-template-rows:auto auto 1fr}
 
 .scene[data-err]::before{content:attr(data-err);position:absolute;z-index:5;color:#fff;font-size:.95em;padding:1em;text-align:center}
 .scene{position:relative;background:var(--scene);display:grid;place-items:center;min-height:0;min-width:0}
@@ -82,7 +82,7 @@ button{font:inherit;color:inherit}
 .qtext{font-family:var(--f-display);font-weight:600;font-size:1.45em;line-height:1.15;margin:0;text-wrap:balance}
 .hint{color:var(--muted);font-size:.92em;margin:0}
 
-.tray{display:flex;flex-wrap:wrap;gap:calc(var(--tok)*.45);align-items:center;min-height:calc(var(--tok)*1.5);padding:calc(var(--tok)*.25) calc(var(--tok)*.3);
+.tray{--tok:var(--ttok);display:flex;flex-wrap:wrap;gap:calc(var(--tok)*.45);align-items:center;min-height:calc(var(--tok)*1.5);padding:calc(var(--tok)*.25) calc(var(--tok)*.3);
   border:1.5px dashed var(--line);border-radius:10px;background:var(--chip)}
 .tray.empty::after{content:"Wszystkie numery są na scenie. Możesz je przeciągać między pojazdami.";color:var(--muted);font-size:.88em}
 .actions{display:flex;gap:.6em;flex-wrap:wrap}
@@ -127,7 +127,7 @@ h3.sub{font-family:var(--f-display);font-weight:600;font-size:1em;letter-spacing
   .dot{width:25px;height:25px}
   .stage{display:block;margin-left:calc(-1 * max(16px, env(safe-area-inset-left, 0px)));margin-right:calc(-1 * max(16px, env(safe-area-inset-right, 0px)))}
   .frame{border-radius:0;border-left:0;border-right:0;box-shadow:none}
-  .frame.portrait{--fs:3.9cqw;--tok:9cqw}
+  .frame.portrait{--fs:3.9cqw;--tok:9cqw;--ttok:15cqw}
   .foot{padding-bottom:56px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
