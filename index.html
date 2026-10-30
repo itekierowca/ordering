@@ -292,7 +292,8 @@ function check(){
   const q=Q[S.i],ok=q.order.every((id,k)=>S.place[id]===k+1);
   S.res[S.i]={place:{...S.place},ok};S.place={};S.sel=null;render();
 }
-function go(k){S.view="q";S.i=k;S.place={};S.sel=null;render()}
+function toTop(){try{scrollTo({top:0,behavior:"instant"})}catch(e){scrollTo(0,0)}}
+function go(k){S.view="q";S.i=k;S.place={};S.sel=null;render();toTop()}
 
 // clicks
 frame.addEventListener("click",e=>{
@@ -300,8 +301,8 @@ frame.addEventListener("click",e=>{
   const b=e.target.closest("button,.tok");if(!b)return;
   if(b.id==="check")return check();
   if(b.id==="clear"){S.place={};S.sel=null;return render()}
-  if(b.id==="next"){const k=firstOpen();if(k>=Q.length){S.view="sum";return render()}return go(k)}
-  if(b.id==="sum"){S.view="sum";return render()}
+  if(b.id==="next"){const k=firstOpen();if(k>=Q.length){S.view="sum";render();return toTop()}return go(k)}
+  if(b.id==="sum"){S.view="sum";render();return toTop()}
   if(b.id==="again"){S.res=Array(Q.length).fill(null);return go(0)}
   if(b.dataset.k)return go(+b.dataset.k);
   if(S.res[S.i])return;
