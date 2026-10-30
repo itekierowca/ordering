@@ -1,1 +1,339 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kolejność przejazdu</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: narrow app bar, then one "device frame" in the chosen aspect (16:9 / 9:16 / 1:1) holding scene + answer panel */
+:root{
+  --bg:#E9ECEF; --surface:#FFFFFF; --ink:#14181D; --muted:#59626D; --line:#D2D8DF;
+  --scene:#2B3036; --sign:#F5C400; --sign-ink:#111111; --ok:#1C7F46; --bad:#C3362B; --focus:#1F5FD1;
+  --ok-soft:#E3F3EA; --bad-soft:#FBE7E5; --chip:#F2F4F6;
+  --f-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1114; --surface:#181C21; --ink:#E8EBEE; --muted:#9AA3AD; --line:#2B323A;
+  --scene:#0A0C0E; --ok:#43B874; --bad:#F06A5E; --focus:#6E9CFF; --ok-soft:#173022; --bad-soft:#3A1B18; --chip:#22282F; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1114; --surface:#181C21; --ink:#E8EBEE; --muted:#9AA3AD; --line:#2B323A;
+  --scene:#0A0C0E; --ok:#43B874; --bad:#F06A5E; --focus:#6E9CFF; --ok-soft:#173022; --bad-soft:#3A1B18; --chip:#22282F; color-scheme:dark}
 
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px;box-sizing:border-box}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+.app{max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:12px;height:100%}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;justify-content:space-between}
+.brand{display:flex;align-items:baseline;gap:12px;min-width:0}
+.brand h1{font-family:var(--f-display);font-weight:700;font-size:26px;letter-spacing:.01em;margin:0;text-wrap:balance}
+.brand span{color:var(--muted);font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+.controls{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:none;padding:6px 12px;cursor:pointer;display:flex;align-items:center;gap:7px;font-size:14px;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.seg i{display:inline-block;border:1.5px solid currentColor;border-radius:2px}
+.dots{display:flex;gap:6px;align-items:center}
+.dot{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);background:var(--surface);font-family:var(--f-display);font-weight:600;font-size:14px;cursor:pointer;display:grid;place-items:center;color:var(--muted);padding:0}
+.dot[disabled]{cursor:default;opacity:.55}
+.dot.cur{border-color:var(--ink);color:var(--ink);box-shadow:inset 0 -3px 0 var(--sign)}
+.dot.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.dot.bad{background:var(--bad);border-color:var(--bad);color:#fff}
+
+.stage{flex:1;min-height:0;display:grid;place-items:center}
+.frame{container-type:size;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:grid;position:relative;
+  box-shadow:0 1px 2px rgba(0,0,0,.06),0 12px 40px -18px rgba(0,0,0,.35);font-size:var(--fs)}
+.frame.landscape{--fs:1.2cqw;--tok:3.1cqw;grid-template-columns:1fr 33cqw}
+.frame.square{--fs:2.35cqw;--tok:5.6cqw;grid-template-rows:auto 1fr}
+.frame.portrait{--fs:3.7cqw;--tok:8.6cqw;grid-template-rows:auto auto 1fr}
+
+.scene[data-err]::before{content:attr(data-err);position:absolute;z-index:5;color:#fff;font-size:.95em;padding:1em;text-align:center}
+.scene{position:relative;background:var(--scene);display:grid;place-items:center;min-height:0;min-width:0}
+.frame.portrait .scene,.frame.square .scene{order:0}
+.viewport{position:relative;width:100%;overflow:hidden;max-width:100%}
+.inner{position:absolute;top:0;height:100%}
+.inner img{display:block;width:100%;height:100%;object-fit:fill;user-select:none;-webkit-user-drag:none;pointer-events:none}
+
+.zone{position:absolute;border:2px dashed rgba(255,255,255,.85);border-radius:6px;background:rgba(255,255,255,.06);cursor:pointer;padding:0;display:grid;place-items:center;
+  box-shadow:0 0 0 1px rgba(0,0,0,.35);transition:background .15s,border-color .15s}
+.zone:hover,.zone.over{background:rgba(245,196,0,.22);border-color:var(--sign);border-style:solid}
+.zone.armed{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{background:rgba(245,196,0,.25)}}
+.zone.ok{border:3px solid #3FD27E;background:rgba(63,210,126,.12)}
+.zone.bad{border:3px solid #FF6B5E;background:rgba(255,107,94,.14)}
+.zone .fix{position:absolute;right:-.2em;bottom:-.2em;transform:translate(30%,30%);background:#3FD27E;color:#08200F;font-family:var(--f-display);font-weight:700;
+  font-size:calc(var(--tok)*.42);padding:.05em .35em;border-radius:4px;white-space:nowrap;line-height:1.2}
+
+.tok{width:var(--tok);height:var(--tok);border-radius:18%;background:var(--sign);color:var(--sign-ink);border:calc(var(--tok)*.05) solid #111;
+  box-shadow:0 0 0 calc(var(--tok)*.06) #fff,0 2px 6px rgba(0,0,0,.45);font-family:var(--f-display);font-weight:700;font-size:calc(var(--tok)*.62);
+  display:grid;place-items:center;line-height:1;cursor:grab;touch-action:none;user-select:none;padding:0;position:relative}
+.tok.sel{outline:3px solid var(--focus);outline-offset:calc(var(--tok)*.1)}
+.tok.ghost{position:fixed;z-index:50;pointer-events:none;transform:translate(-50%,-50%) scale(1.12);cursor:grabbing}
+.tok.lifted{opacity:.25}
+.locked .tok{cursor:default}
+
+.panel{display:flex;flex-direction:column;gap:.9em;padding:1.3em 1.4em;min-height:0;min-width:0;overflow:hidden}
+.frame.square .panel{padding:1em 1.2em;gap:.7em}
+.frame.portrait .panel{padding:.9em 1.1em 1.1em;gap:.7em}
+.qhead{display:flex;flex-direction:column;gap:.25em}
+.frame.portrait .qhead{padding:.9em 1.1em .7em}
+.kicker{font-family:var(--f-display);font-weight:600;font-size:.9em;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.qtext{font-family:var(--f-display);font-weight:600;font-size:1.45em;line-height:1.15;margin:0;text-wrap:balance}
+.hint{color:var(--muted);font-size:.92em;margin:0}
+
+.tray{display:flex;flex-wrap:wrap;gap:calc(var(--tok)*.45);align-items:center;min-height:calc(var(--tok)*1.5);padding:calc(var(--tok)*.25) calc(var(--tok)*.3);
+  border:1.5px dashed var(--line);border-radius:10px;background:var(--chip)}
+.tray.empty::after{content:"Wszystkie numery są na scenie. Możesz je przeciągać między pojazdami.";color:var(--muted);font-size:.88em}
+.actions{display:flex;gap:.6em;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:.55em 1.1em;cursor:pointer;font-weight:600;font-size:1em}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+
+.feedback{overflow:auto;min-height:0;display:flex;flex-direction:column;gap:.8em;padding-right:.2em}
+.verdict{display:flex;align-items:center;gap:.6em;font-family:var(--f-display);font-weight:700;font-size:1.35em;padding:.35em .6em;border-radius:8px}
+.verdict.ok{background:var(--ok-soft);color:var(--ok)}
+.verdict.bad{background:var(--bad-soft);color:var(--bad)}
+.order{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35em}
+.order li{display:grid;grid-template-columns:auto 1fr;gap:.6em;align-items:start}
+.order .n{width:1.6em;height:1.6em;border-radius:4px;background:var(--sign);color:#111;border:1.5px solid #111;font-family:var(--f-display);font-weight:700;display:grid;place-items:center;font-size:.95em}
+.why{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:.35em}
+.law{border-left:3px solid var(--sign);background:var(--chip);border-radius:0 8px 8px 0;padding:.55em .8em;display:flex;flex-direction:column;gap:.2em}
+.law b{font-family:var(--f-mono);font-weight:500;font-size:.85em;letter-spacing:.02em}
+.law q{font-size:.92em;color:var(--muted);quotes:"„" "”"}
+h3.sub{font-family:var(--f-display);font-weight:600;font-size:1em;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:.2em 0 0}
+
+.summary{grid-column:1/-1;grid-row:1/-1;display:flex;flex-direction:column;gap:1em;padding:2em;overflow:auto}
+.summary .score{font-family:var(--f-display);font-weight:700;font-size:4.2em;line-height:1}
+.summary ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.4em}
+.summary li button{width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:.5em .8em;cursor:pointer;display:flex;gap:.7em;align-items:center}
+.mark{font-family:var(--f-display);font-weight:700;width:1.5em;text-align:center}
+.mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
+.foot{color:var(--muted);font-size:12px;text-align:center}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand"><h1>Kolejność przejazdu</h1><span>kat. B · 7 sytuacji</span></div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Format wyświetlania">
+        <button id="f-landscape" data-f="landscape"><i style="width:16px;height:9px"></i>Poziomy</button>
+        <button id="f-portrait" data-f="portrait"><i style="width:9px;height:16px"></i>Pionowy</button>
+        <button id="f-square" data-f="square"><i style="width:12px;height:12px"></i>Kwadrat</button>
+      </div>
+      <nav class="dots" id="dots" aria-label="Pytania"></nav>
+    </div>
+  </header>
+  <main class="stage" id="stage"><div class="frame" id="frame"></div></main>
+  <p class="foot">Przeciągnij numery na pojazdy albo kliknij numer, a potem pojazd. Podstawa prawna: ustawa Prawo o ruchu drogowym (Dz.U. 2024 poz. 1251 t.j.).</p>
+</div>
+
+<script>
+const L={
+ a25_1:{ref:"Art. 25 ust. 1 PoRD",text:"Kierujący pojazdem, zbliżając się do skrzyżowania, jest obowiązany zachować szczególną ostrożność i ustąpić pierwszeństwa pojazdowi nadjeżdżającemu z prawej strony, a jeżeli skręca w lewo – także jadącemu z kierunku przeciwnego na wprost lub skręcającemu w prawo."},
+ a25_2:{ref:"Art. 25 ust. 2 PoRD",text:"Przepisu ust. 1 nie stosuje się do pojazdu szynowego, który ma pierwszeństwo w stosunku do innych pojazdów, bez względu na to, z której strony nadjeżdża."},
+ a22_1:{ref:"Art. 22 ust. 1 PoRD",text:"Kierujący pojazdem może zmienić kierunek jazdy lub zajmowany pas ruchu tylko z zachowaniem szczególnej ostrożności."},
+ a17_1:{ref:"Art. 17 ust. 1 pkt 2 PoRD",text:"Włączanie się do ruchu następuje […] przy wjeżdżaniu: […] na drogę z pola lub na drogę o nawierzchni twardej z drogi o nawierzchni gruntowej."},
+ a17_2:{ref:"Art. 17 ust. 2 PoRD",text:"Kierujący pojazdem, włączając się do ruchu, jest obowiązany zachować szczególną ostrożność oraz ustąpić pierwszeństwa innemu pojazdowi lub uczestnikowi ruchu."},
+ a7:{ref:"§ 5 ust. 5 i 7 rozporządzenia w sprawie znaków i sygnałów drogowych",text:"Znak A-7 „ustąp pierwszeństwa” ostrzega o skrzyżowaniu z drogą z pierwszeństwem. […] Umieszczona pod znakiem A-7 tabliczka T-6c lub T-6d wskazuje rzeczywisty przebieg drogi z pierwszeństwem przez skrzyżowanie."},
+ d1:{ref:"Znak D-1 z tabliczką T-6a (rozporządzenie w sprawie znaków i sygnałów drogowych)",text:"Znak D-1 „droga z pierwszeństwem” oznacza drogę z pierwszeństwem; tabliczka T-6a pod nim wskazuje, że droga z pierwszeństwem zmienia kierunek na skrzyżowaniu."}
+};
+// zones: [x,y,w,h] as fractions of the 1920×1080 scene; order = correct passing order (first = 1)
+const Q=[
+ {img:"https://cdn.e-kierowca.pl/media/image/Wyk%C5%82ad_3.021.jpeg",topic:"Skrzyżowanie równorzędne",q:"Ustal kolejność przejazdu pojazdów.",
+  zones:[{id:"blue",name:"Granatowy SUV – z prawej strony, na wprost",r:[.753,.19,.143,.13]},{id:"red",name:"Czerwony sedan – na wprost",r:[.617,.588,.156,.227]}],
+  order:["blue","red"],
+  why:["Brak znaków i sygnalizacji, więc skrzyżowanie jest równorzędne.","Dla kierującego czerwonym sedanem granatowy SUV nadjeżdża z prawej strony. Czerwony ustępuje mu pierwszeństwa."],
+  law:["a25_1"]},
+ {img:"https://cdn.e-kierowca.pl/media/image/Wyk%C5%82ad_3.014.jpeg",topic:"Skrzyżowanie równorzędne",q:"Ustal kolejność przejazdu pojazdów.",
+  zones:[{id:"red",name:"Czerwony samochód – z przeciwka, na wprost",r:[.354,.236,.068,.139]},{id:"blue",name:"Granatowy samochód – skręca w lewo",r:[.497,.495,.102,.204]}],
+  order:["red","blue"],
+  why:["Skrzyżowanie równorzędne, żaden z pojazdów nie nadjeżdża z prawej strony drugiego.","Granatowy skręca w lewo, więc ustępuje pierwszeństwa jadącemu z kierunku przeciwnego na wprost."],
+  law:["a25_1"]},
+ {img:"https://cdn.e-kierowca.pl/media/image/Wyk%C5%82ad_3.028.jpeg",topic:"Skrzyżowanie równorzędne",q:"Ustal kolejność przejazdu pojazdów.",
+  zones:[{id:"red",name:"Czerwony – z dolnego wlotu, skręca w prawo",r:[.563,.523,.122,.171]},{id:"green",name:"Zielony – z lewego wlotu, na wprost",r:[.117,.458,.135,.12]},{id:"white",name:"Biały – z prawego wlotu, skręca w lewo",r:[.646,.218,.153,.106]}],
+  order:["red","green","white"],
+  why:["Zielony ma czerwonego po prawej stronie, a obaj wjeżdżają na ten sam pas. Zielony ustępuje czerwonemu.","Biały skręca w lewo, więc ustępuje jadącemu z przeciwka na wprost, czyli zielonemu.","Biały nadjeżdża z prawej strony czerwonego, ale ich tory jazdy się nie przecinają: czerwony skręca w prawo przy krawędzi jezdni, a biały zjeżdża na pas przeciwny do tego, którym nadjechał czerwony. Czerwony może jechać pierwszy."],
+  law:["a25_1"]},
+ {img:"https://cdn.e-kierowca.pl/media/image/Wyk%C5%82ad_3.026.jpeg",topic:"Zawracanie na skrzyżowaniu",q:"Ustal kolejność przejazdu pojazdów.",
+  zones:[{id:"moto",name:"Motocykl – na wprost",r:[.594,.25,.073,.116]},{id:"red",name:"Czerwony samochód – na wprost",r:[.635,.546,.122,.195]},{id:"blue",name:"Granatowy samochód – zawraca",r:[.122,.417,.164,.134]}],
+  order:["moto","red","blue"],
+  why:["Skrzyżowanie równorzędne. Motocykl nadjeżdża z prawej strony czerwonego samochodu, więc czerwony ustępuje motocyklowi.","Granatowy zawraca, czyli wykonuje manewr jak skręt w lewo. Ustępuje jadącemu z przeciwka na wprost (motocykl) i nadjeżdżającemu z prawej (czerwony).","Kolejność: motocykl, czerwony, granatowy."],
+  law:["a25_1","a22_1"]},
+ {img:"https://cdn.e-kierowca.pl/media/image/Wyk%C5%82ad_3.033.jpeg",topic:"Tramwaj na skrzyżowaniu równorzędnym",q:"Ustal kolejność przejazdu pojazdów.",
+  zones:[{id:"tram",name:"Tramwaj – skręca w prawo",r:[.466,.389,.128,.185]},{id:"bus",name:"Autobus – skręca w lewo",r:[.615,0,.203,.144]},{id:"red",name:"Czerwony samochód – na wprost",r:[.628,.472,.104,.13]}],
+  order:["tram","bus","red"],
+  why:["Na skrzyżowaniu równorzędnym pojazd szynowy ma pierwszeństwo przed innymi pojazdami bez względu na kierunek, z którego nadjeżdża. Tramwaj jedzie pierwszy, choć skręca w prawo i przecina tor czerwonego.","Autobus nadjeżdża z prawej strony czerwonego samochodu, więc czerwony ustępuje autobusowi.","Autobus skręca w lewo, ale z kierunku przeciwnego nikt nie nadjeżdża. Czeka tylko na tramwaj."],
+  law:["a25_2","a25_1"]},
+ {img:"https://cdn.e-kierowca.pl/media/image/Wyk%C5%82ad_3004.jpeg",topic:"Wjazd z drogi gruntowej",q:"Ustal kolejność przejazdu pojazdów.",
+  zones:[{id:"red",name:"Czerwony – jedzie drogą o nawierzchni twardej",r:[.763,.315,.159,.194]},{id:"blue",name:"Niebieski – wyjeżdża z drogi gruntowej, skręca w prawo",r:[.357,.306,.156,.19]}],
+  order:["red","blue"],
+  why:["Niebieski wjeżdża z drogi o nawierzchni gruntowej na drogę o nawierzchni twardej, więc włącza się do ruchu.","Włączający się do ruchu ustępuje pierwszeństwa wszystkim. Zasada prawej ręki tu nie działa, choć niebieski jest po prawej stronie czerwonego."],
+  law:["a17_1","a17_2"]},
+ {img:"https://cdn.e-kierowca.pl/media/image/Wyk%C5%82ad_3.003.jpeg",topic:"Droga z pierwszeństwem zmienia kierunek",q:"Ustal kolejność przejazdu pojazdów.",
+  zones:[{id:"red",name:"Czerwony – znak D-1, na wprost",r:[.677,.5,.159,.194]},{id:"green",name:"Zielony – znak D-1, skręca w lewo",r:[.174,.491,.167,.171]},{id:"blue",name:"Niebieski – znak A-7, skręca w prawo",r:[.258,.162,.117,.162]},{id:"white",name:"Biały – znak A-7, na wprost",r:[.607,.162,.156,.148]}],
+  order:["red","green","blue","white"],
+  why:["Tabliczki T-6a pod znakami D-1 pokazują, że droga z pierwszeństwem biegnie od dolnego wlotu do lewego. Czerwony i zielony są na drodze z pierwszeństwem.","Między sobą kierujący na drodze z pierwszeństwem stosują art. 25 ust. 1. Czerwony nadjeżdża z prawej strony zielonego, więc zielony ustępuje czerwonemu.","Niebieski i biały stoją przy znakach A-7 i przepuszczają oba pojazdy z drogi z pierwszeństwem.","Między pojazdami z dróg podporządkowanych znów obowiązuje zasada prawej ręki: niebieski jest po prawej stronie białego. Biały jedzie ostatni."],
+  law:["d1","a7","a25_1"]}
+];
+
+const FORMATS={landscape:16/9,portrait:9/16,square:1};
+const S={fmt:null,i:0,place:{},sel:null,res:Array(Q.length).fill(null),view:"q"};
+const frame=document.getElementById("frame"),stage=document.getElementById("stage"),dotsEl=document.getElementById("dots");
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function store(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function load(k){try{return localStorage.getItem(k)}catch(e){return null}}
+
+function setFmt(f){S.fmt=f;store("kp-fmt",f);
+  document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.f===f));
+  frame.className="frame "+f;size();render();}
+function size(){
+  const r=FORMATS[S.fmt],aw=stage.clientWidth,ah=Math.max(stage.clientHeight,420);
+  let w=Math.min(aw,ah*r),h=w/r; if(h>ah){h=ah;w=h*r}
+  frame.style.width=Math.floor(w)+"px";frame.style.height=Math.floor(h)+"px";
+}
+addEventListener("resize",size);
+
+function crop(q){ // fraction of image width visible, and left offset
+  if(S.fmt!=="portrait")return{cw:1,left:0,ar:16/9};
+  const cw=.75,xs=q.zones.flatMap(z=>[z.r[0],z.r[0]+z.r[2]]);
+  const c=(Math.min(...xs)+Math.max(...xs))/2;
+  return{cw,left:Math.min(Math.max(c-cw/2,0),1-cw),ar:4/3};
+}
+
+function dots(){
+  dotsEl.innerHTML=Q.map((q,k)=>{const r=S.res[k],cls=[k===S.i&&S.view==="q"?"cur":"",r?(r.ok?"ok":"bad"):""].join(" ");
+    const can=r||k===firstOpen();return `<button class="dot ${cls}" data-k="${k}" ${can?"":"disabled"} aria-label="Pytanie ${k+1}${r?(r.ok?", dobrze":", źle"):""}">${k+1}</button>`}).join("");
+}
+function firstOpen(){const k=S.res.findIndex(r=>!r);return k<0?Q.length:k}
+
+function render(){
+  dots();
+  if(S.view==="sum")return renderSum();
+  const q=Q[S.i],res=S.res[S.i],locked=!!res,place=locked?res.place:S.place;
+  const {cw,left,ar}=crop(q);
+  const placed=new Set(Object.values(place));
+  const nums=q.zones.map((_,k)=>k+1);
+  const zonesHTML=q.zones.map(z=>{
+    const t=place[z.id];let cls="zone";let fix="";
+    if(locked){const want=q.order.indexOf(z.id)+1;cls+=t===want?" ok":" bad";if(t!==want)fix=`<span class="fix">${want}</span>`}
+    return `<button class="${cls}${S.sel&&!locked?" armed":""}" data-z="${z.id}" aria-label="${esc(z.name)}${t?", numer "+t:""}" style="left:${z.r[0]*100}%;top:${z.r[1]*100}%;width:${z.r[2]*100}%;height:${z.r[3]*100}%">${t?tok(t,true):""}${fix}</button>`}).join("");
+  const scene=`<div class="scene"><div class="viewport" style="aspect-ratio:${ar}"><div class="inner" style="width:${100/cw}%;left:${-left/cw*100}%">
+     <img src="${q.img}" alt="Scena: ${esc(q.topic)}" draggable="false" decoding="async" onerror="this.closest('.scene').setAttribute('data-err','Nie udało się wczytać grafiki. Sprawdź połączenie z internetem.')">${zonesHTML}</div></div></div>`;
+  const head=`<div class="qhead"><div class="kicker">Pytanie ${S.i+1} z ${Q.length} · ${esc(q.topic)}</div><p class="qtext">${esc(q.q)}</p>
+     ${locked?"":`<p class="hint">Przeciągnij numery na pojazdy. 1 = jedzie pierwszy.</p>`}</div>`;
+  let body;
+  if(!locked){
+    const free=nums.filter(n=>!placed.has(n));
+    body=`<div class="tray${free.length?"":" empty"}" id="tray" aria-label="Numery do rozmieszczenia">${free.map(n=>tok(n)).join("")}</div>
+      <div class="actions"><button class="btn primary" id="check" ${placed.size===nums.length?"":"disabled"}>Sprawdź</button>
+      <button class="btn" id="clear" ${placed.size?"":"disabled"}>Wyczyść</button></div>`;
+  }else{
+    const allDone=S.res.every(Boolean);
+    body=`<div class="feedback">
+      <div class="verdict ${res.ok?"ok":"bad"}">${res.ok?"✓ Dobrze":"✗ Błędna kolejność"}</div>
+      <h3 class="sub">Prawidłowa kolejność</h3>
+      <ol class="order">${q.order.map((id,k)=>`<li><span class="n">${k+1}</span><span>${esc(q.zones.find(z=>z.id===id).name)}</span></li>`).join("")}</ol>
+      <h3 class="sub">Uzasadnienie</h3>
+      <ul class="why">${q.why.map(w=>`<li>${esc(w)}</li>`).join("")}</ul>
+      <h3 class="sub">Podstawa prawna</h3>
+      ${q.law.map(k=>`<div class="law"><b>${esc(L[k].ref)}</b><q>${esc(L[k].text)}</q></div>`).join("")}
+      </div>
+      <div class="actions">${allDone?`<button class="btn primary" id="sum">Zobacz wynik</button>`:`<button class="btn primary" id="next">Następne pytanie</button>`}</div>`;
+  }
+  frame.classList.toggle("locked",locked);
+  frame.innerHTML = S.fmt==="portrait" ? head+scene+`<div class="panel">${body}</div>`
+                  : S.fmt==="square" ? scene+`<div class="panel">${head}${body}</div>`
+                  : scene+`<div class="panel">${head}${body}</div>`;
+  if(S.sel){const el=frame.querySelector(`.tok[data-n="${S.sel}"]`);el&&el.classList.add("sel")}
+}
+function tok(n,inZone){return `<span class="tok" role="button" tabindex="0" data-n="${n}" aria-label="Numer ${n}${inZone?" (umieszczony)":""}">${n}</span>`}
+
+function renderSum(){
+  frame.classList.remove("locked");
+  const ok=S.res.filter(r=>r&&r.ok).length;
+  frame.innerHTML=`<div class="summary"><div class="kicker">Wynik</div><div class="score">${ok} / ${Q.length}</div>
+   <p class="hint">${ok===Q.length?"Wszystkie sytuacje rozwiązane poprawnie.":"Kliknij pytanie, żeby zobaczyć uzasadnienie i podstawę prawną."}</p>
+   <ul>${Q.map((q,k)=>`<li><button data-k="${k}"><span class="mark ${S.res[k].ok?"ok":"bad"}">${S.res[k].ok?"✓":"✗"}</span><span>${k+1}. ${esc(q.topic)}</span></button></li>`).join("")}</ul>
+   <div class="actions"><button class="btn primary" id="again">Rozwiąż ponownie</button></div></div>`;
+}
+
+function zoneOf(n){return Object.keys(S.place).find(k=>S.place[k]===n)}
+function move(n,target){
+  const src=zoneOf(n);
+  if(target){const ex=S.place[target];S.place[target]=n;if(src&&src!==target){ex?S.place[src]=ex:delete S.place[src]}}
+  else if(src)delete S.place[src];
+  S.sel=null;render();
+}
+function check(){
+  const q=Q[S.i],ok=q.order.every((id,k)=>S.place[id]===k+1);
+  S.res[S.i]={place:{...S.place},ok};S.place={};S.sel=null;render();
+}
+function go(k){S.view="q";S.i=k;S.place={};S.sel=null;render()}
+
+// clicks
+frame.addEventListener("click",e=>{
+  if(suppressClick){suppressClick=false;return}
+  const b=e.target.closest("button,.tok");if(!b)return;
+  if(b.id==="check")return check();
+  if(b.id==="clear"){S.place={};S.sel=null;return render()}
+  if(b.id==="next"){const k=firstOpen();if(k>=Q.length){S.view="sum";return render()}return go(k)}
+  if(b.id==="sum"){S.view="sum";return render()}
+  if(b.id==="again"){S.res=Array(Q.length).fill(null);return go(0)}
+  if(b.dataset.k)return go(+b.dataset.k);
+  if(S.res[S.i])return;
+  if(b.classList.contains("tok")){const n=+b.dataset.n;
+    if(S.sel&&S.sel!==n&&b.closest(".zone")){return move(S.sel,b.closest(".zone").dataset.z)}
+    S.sel=S.sel===n?null:n;return render()}
+  if(b.classList.contains("zone")&&S.sel)return move(S.sel,b.dataset.z);
+});
+frame.addEventListener("click",e=>{if(e.target.closest("#tray")&&!e.target.closest(".tok")&&S.sel&&!S.res[S.i])move(S.sel,null)});
+frame.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&e.target.classList.contains("tok")){e.preventDefault();e.target.click()}
+  if(e.key==="Escape"&&S.sel){S.sel=null;render()}});
+dotsEl.addEventListener("click",e=>{const b=e.target.closest(".dot");if(b&&!b.disabled)go(+b.dataset.k)});
+document.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>setFmt(b.dataset.f)));
+
+// drag
+let drag=null,suppressClick=false;
+frame.addEventListener("pointerdown",e=>{
+  const t=e.target.closest(".tok");if(!t||S.res[S.i]||S.view!=="q")return;
+  drag={n:+t.dataset.n,el:t,x:e.clientX,y:e.clientY,on:false,id:e.pointerId};
+});
+addEventListener("pointermove",e=>{
+  if(!drag||e.pointerId!==drag.id)return;
+  if(!drag.on){if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)<5)return;
+    drag.on=true;const g=drag.el.cloneNode(true);g.classList.add("ghost");g.classList.remove("sel");
+    const cs=getComputedStyle(drag.el);g.style.width=cs.width;g.style.height=cs.height;g.style.fontSize=cs.fontSize;
+    document.body.appendChild(g);drag.g=g;drag.el.classList.add("lifted")}
+  e.preventDefault();
+  drag.g.style.left=e.clientX+"px";drag.g.style.top=e.clientY+"px";
+  frame.querySelectorAll(".zone.over").forEach(z=>z.classList.remove("over"));
+  const z=hit(e);z&&z.classList.add("over");
+},{passive:false});
+function hit(e){const el=document.elementFromPoint(e.clientX,e.clientY);return el&&el.closest(".zone")}
+function end(e){
+  if(!drag||e.pointerId!==drag.id)return;
+  if(drag.on){const z=hit(e);drag.g.remove();suppressClick=true;setTimeout(()=>suppressClick=false,0);
+    const inTray=document.elementFromPoint(e.clientX,e.clientY)?.closest("#tray");
+    if(z)move(drag.n,z.dataset.z);else if(inTray||zoneOf(drag.n))move(drag.n,null);else render()}
+  drag=null;
+}
+addEventListener("pointerup",end);addEventListener("pointercancel",e=>{if(drag&&drag.g)drag.g.remove();drag=null;render()});
+
+// init
+const saved=load("kp-fmt");
+setFmt(FORMATS[saved]?saved:(innerWidth<innerHeight?"portrait":"landscape"));
+requestAnimationFrame(size);
+</script>
+
+</html>
