@@ -31,7 +31,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1
 button{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
 
-.app{max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:12px;height:100%}
+.app{max-width:1400px;margin:0 auto;display:flex;flex-direction:column;gap:12px;min-height:100%}
 .bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 20px;justify-content:space-between}
 .brand{display:flex;align-items:baseline;gap:12px;min-width:0}
 .brand h1{font-family:var(--f-display);font-weight:700;font-size:26px;letter-spacing:.01em;margin:0;text-wrap:balance}
@@ -49,7 +49,7 @@ button{font:inherit;color:inherit}
 .dot.ok{background:var(--ok);border-color:var(--ok);color:#fff}
 .dot.bad{background:var(--bad);border-color:var(--bad);color:#fff}
 
-.stage{flex:1;min-height:0;display:grid;place-items:center}
+.stage{flex:1;min-height:0;display:grid;align-items:start;justify-items:center}
 .frame{container-type:size;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:grid;position:relative;
   box-shadow:0 1px 2px rgba(0,0,0,.06),0 12px 40px -18px rgba(0,0,0,.35);font-size:var(--fs)}
 .frame.landscape{--fs:1.2cqw;--tok:3.1cqw;grid-template-columns:1fr 33cqw}
@@ -118,6 +118,29 @@ h3.sub{font-family:var(--f-display);font-weight:600;font-size:1em;letter-spacing
 .mark{font-family:var(--f-display);font-weight:700;width:1.5em;text-align:center}
 .mark.ok{color:var(--ok)} .mark.bad{color:var(--bad)}
 .foot{color:var(--muted);font-size:12px;text-align:center}
+/* iOS: no text-selection callout while dragging numbers */
+.app{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.feedback{-webkit-user-select:text;user-select:text}
+/* portrait grows with its content, so the scene can use the full width */
+.frame.portrait{container-type:inline-size;height:auto}
+.frame.portrait .panel,.frame.portrait .feedback{overflow:visible}
+@media (max-width:700px){
+  body{padding-block:8px}
+  .app{gap:10px}
+  .bar{gap:8px}
+  .brand h1{font-size:22px}
+  .brand span{font-size:11px}
+  .controls{width:100%;gap:8px;justify-content:space-between}
+  .seg button{padding:6px 9px;font-size:13px}
+  .dots{gap:4px}
+  .dot{width:25px;height:25px}
+  .stage{display:block;margin-left:calc(-1 * max(16px, env(safe-area-inset-left, 0px)));margin-right:calc(-1 * max(16px, env(safe-area-inset-right, 0px)))}
+  .frame{border-radius:0;border-left:0;border-right:0;box-shadow:none}
+  .frame.portrait{--fs:3.9cqw;--tok:9cqw}
+  .frame.square{--fs:3.1cqw;--tok:7cqw}
+  .frame.square .panel{overflow:auto}
+  .foot{padding-bottom:56px}
+}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 
@@ -169,7 +192,7 @@ const Q=[
   order:["moto","red","blue"],
   why:["Skrzyżowanie równorzędne. Motocykl nadjeżdża z prawej strony czerwonego samochodu, więc czerwony ustępuje motocyklowi.","Granatowy zawraca, czyli wykonuje manewr jak skręt w lewo. Ustępuje jadącemu z przeciwka na wprost (motocykl) i nadjeżdżającemu z prawej (czerwony).","Kolejność: motocykl, czerwony, granatowy."],
   law:["a25_1","a22_1"]},
- {img:"https://cdn.e-kierowca.pl/media/image/Wyk%C5%82ad_3.033.jpeg",topic:"Tramwaj na skrzyżowaniu równorzędnym",q:"Ustal kolejność przejazdu pojazdów.",
+ {img:"https://cdn.e-kierowca.pl/media/image/Wyk%C5%82ad_3.033.jpeg",keep:[.24,.85],topic:"Tramwaj na skrzyżowaniu równorzędnym",q:"Ustal kolejność przejazdu pojazdów.",
   zones:[{id:"tram",name:"Tramwaj – skręca w prawo",r:[.466,.389,.128,.185]},{id:"bus",name:"Autobus – skręca w lewo",r:[.615,0,.203,.144]},{id:"red",name:"Czerwony samochód – na wprost",r:[.628,.472,.104,.13]}],
   order:["tram","bus","red"],
   why:["Na skrzyżowaniu równorzędnym pojazd szynowy ma pierwszeństwo przed innymi pojazdami bez względu na kierunek, z którego nadjeżdża. Tramwaj jedzie pierwszy, choć skręca w prawo i przecina tor czerwonego.","Autobus nadjeżdża z prawej strony czerwonego samochodu, więc czerwony ustępuje autobusowi.","Autobus skręca w lewo, ale z kierunku przeciwnego nikt nie nadjeżdża. Czeka tylko na tramwaj."],
@@ -198,17 +221,26 @@ function setFmt(f){S.fmt=f;store("kp-fmt",f);
   document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.f===f));
   frame.className="frame "+f;size();render();}
 function size(){
-  const r=FORMATS[S.fmt],aw=stage.clientWidth,ah=Math.max(stage.clientHeight,420);
-  let w=Math.min(aw,ah*r),h=w/r; if(h>ah){h=ah;w=h*r}
-  frame.style.width=Math.floor(w)+"px";frame.style.height=Math.floor(h)+"px";
+  const r=FORMATS[S.fmt],aw=stage.clientWidth,mobile=innerWidth<=700;
+  const ah=Math.max(innerHeight-stage.getBoundingClientRect().top-56,420);
+  let w,h;
+  if(mobile){w=aw;h=w/r}
+  else{w=Math.min(aw,ah*r);h=w/r;if(h>ah){h=ah;w=h*r}}
+  frame.style.width=Math.floor(w)+"px";
+  frame.style.height=S.fmt==="portrait"?"":Math.floor(h)+"px";
 }
 addEventListener("resize",size);
 
 function crop(q){ // fraction of image width visible, and left offset
   if(S.fmt!=="portrait")return{cw:1,left:0,ar:16/9};
-  const cw=.75,xs=q.zones.flatMap(z=>[z.r[0],z.r[0]+z.r[2]]);
-  const c=(Math.min(...xs)+Math.max(...xs))/2;
-  return{cw,left:Math.min(Math.max(c-cw/2,0),1-cw),ar:4/3};
+  // tightest crop that keeps every vehicle (and q.keep, e.g. a long arrow), between 1:1 and 16:9
+  const xs=q.zones.flatMap(z=>[z.r[0],z.r[0]+z.r[2]]).concat(q.keep||[]);
+  const x0=Math.min(...xs),x1=Math.max(...xs);
+  const cw=Math.min(1,Math.max(.5625,x1-x0+.1));
+  let left=((x0+x1)/2+.5)/2-cw/2;          // lean toward the middle of the junction
+  left=Math.min(left,x0-.03);left=Math.max(left,x1+.03-cw);
+  left=Math.min(Math.max(left,0),1-cw);
+  return{cw,left,ar:cw*16/9};
 }
 
 function dots(){
@@ -229,7 +261,7 @@ function render(){
     if(locked){const want=q.order.indexOf(z.id)+1;cls+=t===want?" ok":" bad";if(t!==want)fix=`<span class="fix">${want}</span>`}
     return `<button class="${cls}${S.sel&&!locked?" armed":""}" data-z="${z.id}" aria-label="${esc(z.name)}${t?", numer "+t:""}" style="left:${z.r[0]*100}%;top:${z.r[1]*100}%;width:${z.r[2]*100}%;height:${z.r[3]*100}%">${t?tok(t,true):""}${fix}</button>`}).join("");
   const scene=`<div class="scene"><div class="viewport" style="aspect-ratio:${ar}"><div class="inner" style="width:${100/cw}%;left:${-left/cw*100}%">
-     <img src="${q.img}" alt="Scena: ${esc(q.topic)}" draggable="false" decoding="async" onerror="this.closest('.scene').setAttribute('data-err','Nie udało się wczytać grafiki. Sprawdź połączenie z internetem.')">${zonesHTML}</div></div></div>`;
+     <img src="${q.img}" alt="Scena: ${esc(q.topic)}" draggable="false" onerror="this.closest('.scene').setAttribute('data-err','Nie udało się wczytać grafiki. Sprawdź połączenie z internetem.')">${zonesHTML}</div></div></div>`;
   const head=`<div class="qhead"><div class="kicker">Pytanie ${S.i+1} z ${Q.length} · ${esc(q.topic)}</div><p class="qtext">${esc(q.q)}</p>
      ${locked?"":`<p class="hint">Przeciągnij numery na pojazdy. 1 = jedzie pierwszy.</p>`}</div>`;
   let body;
